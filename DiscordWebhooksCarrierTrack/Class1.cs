@@ -14,18 +14,22 @@ namespace DiscordWebhooksCarrierTrack
 {
     public class Class1
     {
-        private class Config
+        public class Config
         {
-            public string WebhookLink;
-            public string WebhookName;
-
-            public string LastJumpSystem;
-            public string LastJumpBak;
+            public Settings settings;
+            public string CurrentSystemGuess;
+            public string LastJumpSystemRequest;
+            public string TrackName;
+            public bool Canceled;
 
             public string CarrierName;
             public string CarrierIdent;
-
-            public DateTime? LastJumpReq;
+            public class Settings
+            {
+                public string WebhookLink;
+                public string WebhookName;
+                public bool Enabled;
+            }
         }
         public void Main(string Event)
         {
@@ -33,15 +37,20 @@ namespace DiscordWebhooksCarrierTrack
         }
         private void Run(string Event)
         {
-            if (!File.Exists("CarrierTrack.json"))
+            Config config = new Config();
+            if (!File.Exists("CarrierTrackSettings.json"))
             {
-                StreamWriter sw = File.CreateText("CarrierTrack.json");
-                sw.Write(JsonConvert.SerializeObject(new Config() { WebhookLink = "Webhook link", WebhookName = "Something|CMDR Name|Carrier name", LastJumpSystem = "\\*\\*\\*" }, Formatting.Indented));
+                StreamWriter sw = File.CreateText("CarrierTrackSettings.json");
+                sw.Write(JsonConvert.SerializeObject(new Config() { settings = new Config.Settings() { WebhookLink = "Webhook link", WebhookName = "Webhook Name", Enabled = true }, LastJumpSystemRequest = "Unknown" }, Formatting.Indented));
                 sw.Close();
+                config = new Config() { settings = new Config.Settings() { WebhookLink = "Webhook link", WebhookName = "Webhook Name", Enabled = true }, LastJumpSystemRequest = "Unknown" };
             }
             else
             {
-                Config config = JsonConvert.DeserializeObject<Config>(File.ReadAllText("CarrierTrack.json"));
+                config = JsonConvert.DeserializeObject<Config>(File.ReadAllText("CarrierTrackSettings.json"));
+            }
+            if (config.settings.Enabled)
+            {
                 try
                 {
                     CommonEvent ev = JsonConvert.DeserializeObject<CommonEvent>(Event);
@@ -53,50 +62,57 @@ namespace DiscordWebhooksCarrierTrack
                     }
                     else if (ev.Event == "CarrierJumpRequest")
                     {
+                        if (!config.Canceled)
+                        {
+                            config.CurrentSystemGuess = config.LastJumpSystemRequest;
+                        }
                         CarrierJumpRequestInfo info = JsonConvert.DeserializeObject<CarrierJumpRequestInfo>(Event);
-
                         DiscordWebhook webhook = new DiscordWebhook();
-                        webhook.Url = config.WebhookLink;
-                        webhook.Send(new Discord.DiscordMessage() { Username = config.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Запланирован прыжок", Description = $"Запланирован прыжок носителя {config.CarrierName} {config.CarrierIdent} в систему {info.SystemName} к телу {info.Body} из системы {config.LastJumpSystem}", Color = Color.Blue } } });
+                        webhook.Url = config.settings.WebhookLink;
+                        if (string.IsNullOrWhiteSpace(info.Body))
+                            webhook.Send(new Discord.DiscordMessage() { Username = config.settings.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Запланирован прыжок", Description = $"Запланирован прыжок носителя {config.CarrierName} {config.CarrierIdent} в систему {info.SystemName} из системы {config.LastJumpSystemRequest}", Color = Color.Blue } } });
+                        else
+                            webhook.Send(new Discord.DiscordMessage() { Username = config.settings.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Запланирован прыжок", Description = $"Запланирован прыжок носителя {config.CarrierName} {config.CarrierIdent} в систему {info.SystemName} к телу {info.Body} из системы {config.LastJumpSystemRequest}", Color = Color.Blue } } });
                         webhook = null;
-                        config.LastJumpSystem = info.SystemName;
-                        config.LastJumpReq = DateTime.UtcNow;
+                        config.LastJumpSystemRequest = info.SystemName;
+                        config.Canceled = false;
                     }
                     else if (ev.Event == "CarrierJumpCancelled")
                     {
-                        config.LastJumpSystem = config.LastJumpBak;
-                        config.LastJumpReq = null;
-
+                        config.Canceled = true;
                         DiscordWebhook webhook = new DiscordWebhook();
-                        webhook.Url = config.WebhookLink;
-                        webhook.Send(new Discord.DiscordMessage() { Username = config.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Прыжок отменён", Description = $"Прыжок носителя {config.CarrierName} {config.CarrierIdent} отменён", Color = Color.Red } } });
+                        webhook.Url = config.settings.WebhookLink;
+                        webhook.Send(new Discord.DiscordMessage() { Username = config.settings.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Прыжок отменён", Description = $"Прыжок носителя {config.CarrierName} {config.CarrierIdent} отменён", Color = Color.Red } } });
                         webhook = null;
+                        config.LastJumpSystemRequest = config.CurrentSystemGuess;
                     }
                     else if (ev.Event == "CarrierNameChange")
                     {
                         CarrierNameChangeInfo info = JsonConvert.DeserializeObject<CarrierNameChangeInfo>(Event);
                         DiscordWebhook webhook = new DiscordWebhook();
-                        webhook.Url = config.WebhookLink;
-                        webhook.Send(new Discord.DiscordMessage() { Username = config.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Изменение имени носителя", Description = $"Имя носителя изменилось на {info.Name}", Color = Color.Brown } } });
+                        webhook.Url = config.settings.WebhookLink;
+                        webhook.Send(new Discord.DiscordMessage() { Username = config.settings.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Изменение имени носителя", Description = $"Имя носителя изменилось на {info.Name}", Color = Color.Brown } } });
                         webhook = null;
                     }
                     else if (ev.Event == "CarrierDockingPermission")
                     {
                         CarrierDockingPermissionInfo info = JsonConvert.DeserializeObject<CarrierDockingPermissionInfo>(Event);
                         DiscordWebhook webhook = new DiscordWebhook();
-                        webhook.Url = config.WebhookLink;
-                        webhook.Send(new Discord.DiscordMessage() { Username = config.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Изменение разрешения на стыковку", Description = $"Носитель {config.CarrierName} {config.CarrierIdent} сменил разрешение на стыковку на {info.DockingAccess}\nСтыковка для преступников сейчас {(info.AllowNotorious ? "разрешена" : "запрещена")}", Color = Color.Gray } } });
+                        webhook.Url = config.settings.WebhookLink;
+                        webhook.Send(new Discord.DiscordMessage() { Username = config.settings.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Изменение разрешения на стыковку", Description = $"Носитель {config.CarrierName} {config.CarrierIdent} сменил разрешение на стыковку на {info.DockingAccess}\nСтыковка для преступников сейчас {(info.AllowNotorious ? "разрешена" : "запрещена")}", Color = Color.Gray } } });
                         webhook = null;
                     }
-                    if (config.LastJumpReq != null && (DateTime.UtcNow - config.LastJumpReq).Value.TotalMinutes > 16.15d)
+                    else if (ev.Event == "Music")
                     {
-                        DiscordWebhook webhook = new DiscordWebhook();
-                        webhook.Url = config.WebhookLink;
-                        webhook.Send(new Discord.DiscordMessage() { Username = config.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Прыжок совершён", Description = $"Носитель {config.CarrierName} {config.CarrierIdent} совершил прыжок в систему {config.LastJumpSystem} из системы {config.LastJumpBak}", Color = Color.LightGreen } } });
-                        webhook = null;
-
-                        config.LastJumpBak = config.LastJumpSystem;
-                        config.LastJumpReq = null;
+                        MusicInfo info = JsonConvert.DeserializeObject<MusicInfo>(Event);
+                        if (info.MusicTrack == "NoInGameMusic" && config.TrackName == "NoTrack")
+                        {
+                            DiscordWebhook webhook = new DiscordWebhook();
+                            webhook.Url = config.settings.WebhookLink;
+                            webhook.Send(new Discord.DiscordMessage() { Username = config.settings.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Прыжок совершён", Description = $"Носитель {config.CarrierName} {config.CarrierIdent} совершил прыжок в систему {config.LastJumpSystemRequest} из системы {config.CurrentSystemGuess}", Color = Color.LightGreen } } });
+                            webhook = null;
+                        }
+                        config.TrackName = info.MusicTrack;
                     }
                 }
                 catch
@@ -105,7 +121,7 @@ namespace DiscordWebhooksCarrierTrack
                 }
                 finally
                 {
-                    StreamWriter sw = File.CreateText("CarrierTrack.json");
+                    StreamWriter sw = File.CreateText("CarrierTrackSettings.json");
                     sw.Write(JsonConvert.SerializeObject(config, Formatting.Indented));
                     sw.Close();
                 }
@@ -134,6 +150,10 @@ namespace DiscordWebhooksCarrierTrack
         {
             public string DockingAccess;
             public bool AllowNotorious;
+        }
+        private class MusicInfo : CommonEvent
+        {
+            public string MusicTrack;
         }
     }
 }
