@@ -12,7 +12,7 @@ using Discord.Webhook;
 
 namespace DiscordWebhooksCarrierTrack
 {
-    public class Class1
+    public class Program
     {
         public class Config
         {
@@ -21,6 +21,7 @@ namespace DiscordWebhooksCarrierTrack
             public string LastJumpSystemRequest;
             public string TrackName;
             public bool Canceled;
+            public bool JumpRequested;
 
             public string CarrierName;
             public string CarrierIdent;
@@ -76,6 +77,7 @@ namespace DiscordWebhooksCarrierTrack
                         webhook = null;
                         config.LastJumpSystemRequest = info.SystemName;
                         config.Canceled = false;
+                        config.JumpRequested = true;
                     }
                     else if (ev.Event == "CarrierJumpCancelled")
                     {
@@ -85,6 +87,7 @@ namespace DiscordWebhooksCarrierTrack
                         webhook.Send(new Discord.DiscordMessage() { Username = config.settings.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Прыжок отменён", Description = $"Прыжок носителя {config.CarrierName} {config.CarrierIdent} отменён", Color = Color.Red } } });
                         webhook = null;
                         config.LastJumpSystemRequest = config.CurrentSystemGuess;
+                        config.JumpRequested = false;
                     }
                     else if (ev.Event == "CarrierNameChange")
                     {
@@ -105,12 +108,13 @@ namespace DiscordWebhooksCarrierTrack
                     else if (ev.Event == "Music")
                     {
                         MusicInfo info = JsonConvert.DeserializeObject<MusicInfo>(Event);
-                        if (info.MusicTrack == "NoInGameMusic" && config.TrackName == "NoTrack")
+                        if (info.MusicTrack == "NoInGameMusic" && config.TrackName == "NoTrack" && !config.JumpRequested)
                         {
                             DiscordWebhook webhook = new DiscordWebhook();
                             webhook.Url = config.settings.WebhookLink;
                             webhook.Send(new Discord.DiscordMessage() { Username = config.settings.WebhookName, Embeds = new List<Discord.DiscordEmbed> { new Discord.DiscordEmbed() { Title = "Прыжок совершён", Description = $"Носитель {config.CarrierName} {config.CarrierIdent} совершил прыжок в систему {config.LastJumpSystemRequest} из системы {config.CurrentSystemGuess}", Color = Color.LightGreen } } });
                             webhook = null;
+                            config.JumpRequested = false;
                         }
                         config.TrackName = info.MusicTrack;
                     }
