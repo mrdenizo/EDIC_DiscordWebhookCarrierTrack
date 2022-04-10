@@ -6,4 +6,3 @@ A small project for EDIC carrier tracking.
  2. Copy plugin to EDIC directory
  3. Start EDIC
  4. Set webhook in EDIC Settings tab.
- 4. Set webhook in EDIC Settings tab.
