@@ -37,8 +37,12 @@ namespace DiscordWebhooksCarrierTrack
             }
             ((Form)this.TopLevelControl).FormClosing += (s, ev) =>
             {
-                Config config = Newtonsoft.Json.JsonConvert.DeserializeObject<Config>(File.ReadAllText("CarrierTrackSettings.json"));
-                config.settings = new Config.Settings() { Enabled = checkBox1.Checked, WebhookLink = textBox2.Text, WebhookName = textBox1.Text };
+                Config config = new Config();
+                if (File.Exists("CarrierTrackSettings.json"))
+                {
+                    config = Newtonsoft.Json.JsonConvert.DeserializeObject<Config>(File.ReadAllText("CarrierTrackSettings.json"));
+                    config.settings = new Config.Settings() { Enabled = checkBox1.Checked, WebhookLink = textBox2.Text, WebhookName = textBox1.Text };
+                }
                 if (File.Exists("CarrierTrackSettings.json"))
                 {
                     File.Delete("CarrierTrackSettings.json");
